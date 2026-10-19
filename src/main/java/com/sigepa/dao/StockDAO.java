@@ -1,6 +1,7 @@
 package com.sigepa.dao;
 
 import com.sigepa.model.StockItem;
+import com.sigepa.model.MovimientoStock;
 import com.sigepa.util.DatabaseConnection;
 
 import java.math.BigDecimal;
@@ -90,169 +91,65 @@ public class StockDAO {
     }
 
     public void registrarMovimiento(
-            int idMaterial,
-            int idUsuario,
-            String tipo,
-            BigDecimal cantidad,
-            String motivo
+            MovimientoStock movimiento
     ) throws SQLException {
 
-        Connection connection =
-                DatabaseConnection.getConnection();
+        Connection connection = DatabaseConnection.getConnection();
 
         try {
-
             connection.setAutoCommit(false);
 
             String consultaStock =
-                    "SELECT cantidad "
-                            + "FROM stock "
-                            + "WHERE id_material = ? "
-                            + "FOR UPDATE";
-
+                    "SELECT cantidad FROM stock WHERE id_material = ? FOR UPDATE";
             BigDecimal stockActual;
 
-            try (
-                    PreparedStatement statement =
-                            connection.prepareStatement(
-                                    consultaStock
-                            )
-            ) {
-
-                statement.setInt(
-                        1,
-                        idMaterial
-                );
-
-                try (
-                        ResultSet resultSet =
-                                statement.executeQuery()
-                ) {
-
+            try (PreparedStatement statement = connection.prepareStatement(consultaStock)) {
+                statement.setInt(1, movimiento.getIdMaterial());
+                try (ResultSet resultSet = statement.executeQuery()) {
                     if (!resultSet.next()) {
-
-                        throw new SQLException(
-                                "Material inexistente."
-                        );
+                        throw new SQLException("Material inexistente.");
                     }
-
-                    stockActual =
-                            resultSet.getBigDecimal(
-                                    "cantidad"
-                            );
+                    stockActual = resultSet.getBigDecimal("cantidad");
                 }
             }
 
-            BigDecimal nuevoStock;
-
-            if (
-                    tipo.equalsIgnoreCase(
-                            "INGRESO"
-                    )
-            ) {
-
-                nuevoStock =
-                        stockActual.add(
-                                cantidad
-                        );
-
-            } else {
-
-                nuevoStock =
-                        stockActual.subtract(
-                                cantidad
-                        );
-
-                if (
-                        nuevoStock.compareTo(
-                                BigDecimal.ZERO
-                        ) < 0
-                ) {
-
-                    throw new IllegalArgumentException(
-                            "Stock insuficiente."
-                    );
-                }
-            }
+            // Polimorfismo: cada tipo de movimiento calcula el stock de forma diferente.
+            BigDecimal nuevoStock = movimiento.calcularNuevoStock(stockActual);
 
             String actualizar =
-                    "UPDATE stock "
-                            + "SET cantidad = ? "
-                            + "WHERE id_material = ?";
-
-            try (
-                    PreparedStatement statement =
-                            connection.prepareStatement(
-                                    actualizar
-                            )
-            ) {
-
-                statement.setBigDecimal(
-                        1,
-                        nuevoStock
-                );
-
-                statement.setInt(
-                        2,
-                        idMaterial
-                );
-
+                    "UPDATE stock SET cantidad = ? WHERE id_material = ?";
+            try (PreparedStatement statement = connection.prepareStatement(actualizar)) {
+                statement.setBigDecimal(1, nuevoStock);
+                statement.setInt(2, movimiento.getIdMaterial());
                 statement.executeUpdate();
             }
 
-            String movimiento =
+            String insertarMovimiento =
                     "INSERT INTO movimientos_stock "
                             + "(id_material, id_usuario, tipo, cantidad, motivo) "
                             + "VALUES (?, ?, ?, ?, ?)";
-
-            try (
-                    PreparedStatement statement =
-                            connection.prepareStatement(
-                                    movimiento
-                            )
-            ) {
-
-                statement.setInt(
-                        1,
-                        idMaterial
-                );
-
-                statement.setInt(
-                        2,
-                        idUsuario
-                );
-
-                statement.setString(
-                        3,
-                        tipo.toUpperCase()
-                );
-
-                statement.setBigDecimal(
-                        4,
-                        cantidad
-                );
-
-                statement.setString(
-                        5,
-                        motivo
-                );
-
+            try (PreparedStatement statement = connection.prepareStatement(insertarMovimiento)) {
+                statement.setInt(1, movimiento.getIdMaterial());
+                statement.setInt(2, movimiento.getIdUsuario());
+                statement.setString(3, movimiento.getTipo());
+                statement.setBigDecimal(4, movimiento.getCantidad());
+                statement.setString(5, movimiento.getMotivo());
                 statement.executeUpdate();
             }
 
             connection.commit();
-
         } catch (Exception exception) {
-
             connection.rollback();
-
-            throw exception;
-
+            if (exception instanceof SQLException) {
+                throw (SQLException) exception;
+            }
+            throw new SQLException(exception.getMessage(), exception);
         } finally {
-
-            connection.setAutoCommit(true);
-
-            connection.close();
+            try {
+                connection.setAutoCommit(true);
+            } finally {
+                connection.close();
+            }
         }
     }
 }

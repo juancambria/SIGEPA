@@ -2,6 +2,9 @@ package com.sigepa.service;
 
 import com.sigepa.dao.StockDAO;
 import com.sigepa.model.StockItem;
+import com.sigepa.model.MovimientoStock;
+import com.sigepa.model.IngresoStock;
+import com.sigepa.model.EgresoStock;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -25,33 +28,24 @@ public class StockService {
             String motivo
     ) throws Exception {
 
-        if (
-                cantidad.compareTo(
-                        BigDecimal.ZERO
-                ) <= 0
-        ) {
-
-            throw new IllegalArgumentException(
-                    "La cantidad debe ser mayor a cero."
-            );
-        }
-
-        if (
-                !tipo.equalsIgnoreCase("INGRESO")
-                        && !tipo.equalsIgnoreCase("EGRESO")
-        ) {
-
+        if (tipo == null) {
             throw new IllegalArgumentException(
                     "El tipo debe ser INGRESO o EGRESO."
             );
         }
 
-        stockDAO.registrarMovimiento(
-                idMaterial,
-                idUsuario,
-                tipo,
-                cantidad,
-                motivo
-        );
+        MovimientoStock movimiento;
+
+        if (tipo.equalsIgnoreCase("INGRESO")) {
+            movimiento = new IngresoStock(idMaterial, idUsuario, cantidad, motivo);
+        } else if (tipo.equalsIgnoreCase("EGRESO")) {
+            movimiento = new EgresoStock(idMaterial, idUsuario, cantidad, motivo);
+        } else {
+            throw new IllegalArgumentException(
+                    "El tipo debe ser INGRESO o EGRESO."
+            );
+        }
+
+        stockDAO.registrarMovimiento(movimiento);
     }
 }
