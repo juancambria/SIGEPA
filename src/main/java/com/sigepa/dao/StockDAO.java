@@ -116,13 +116,25 @@ public class StockDAO {
             // Polimorfismo: cada tipo de movimiento calcula el stock de forma diferente.
             BigDecimal nuevoStock = movimiento.calcularNuevoStock(stockActual);
 
+
             String actualizar =
                     "UPDATE stock SET cantidad = ? WHERE id_material = ?";
-            try (PreparedStatement statement = connection.prepareStatement(actualizar)) {
+
+            try (PreparedStatement statement =
+                         connection.prepareStatement(actualizar)) {
+
                 statement.setBigDecimal(1, nuevoStock);
                 statement.setInt(2, movimiento.getIdMaterial());
-                statement.executeUpdate();
+
+                int filasActualizadas = statement.executeUpdate();
+
+                if (filasActualizadas != 1) {
+                    throw new SQLException(
+                            "No se pudo actualizar correctamente el stock."
+                    );
+                }
             }
+
 
             String insertarMovimiento =
                     "INSERT INTO movimientos_stock "

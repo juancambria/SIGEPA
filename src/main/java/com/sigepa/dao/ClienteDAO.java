@@ -55,6 +55,30 @@ public class ClienteDAO {
         }
     }
 
+
+    public boolean actualizar(Cliente cliente) throws SQLException {
+
+        String sql = "UPDATE clientes "
+                + "SET nombre = ?, documento = ?, telefono = ?, "
+                + "email = ?, direccion = ? "
+                + "WHERE id_cliente = ? AND activo = TRUE";
+
+        try (
+                Connection connection = DatabaseConnection.getConnection();
+                PreparedStatement statement = connection.prepareStatement(sql)
+        ) {
+            statement.setString(1, cliente.getNombre());
+            statement.setString(2, cliente.getDocumento());
+            statement.setString(3, cliente.getTelefono());
+            statement.setString(4, cliente.getEmail());
+            statement.setString(5, cliente.getDireccion());
+            statement.setInt(6, cliente.getIdCliente());
+
+            return statement.executeUpdate() > 0;
+        }
+    }
+
+
     public List<Cliente> listar()
             throws SQLException {
 

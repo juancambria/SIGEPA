@@ -29,6 +29,32 @@ public class ClienteService {
         );
     }
 
+
+    public void actualizar(Cliente cliente) throws Exception {
+
+        if (cliente.getIdCliente() <= 0) {
+            throw new IllegalArgumentException(
+                    "El ID del cliente debe ser válido."
+            );
+        }
+
+        if (cliente.getNombre() == null
+                || cliente.getNombre().isBlank()) {
+            throw new IllegalArgumentException(
+                    "El nombre es obligatorio."
+            );
+        }
+
+        boolean actualizado = clienteDAO.actualizar(cliente);
+
+        if (!actualizado) {
+            throw new IllegalArgumentException(
+                    "No se encontró un cliente activo con ese ID."
+            );
+        }
+    }
+
+
     public List<Cliente> listar()
             throws Exception {
 

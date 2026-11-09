@@ -48,4 +48,31 @@ public class StockService {
 
         stockDAO.registrarMovimiento(movimiento);
     }
+
+    public String[] obtenerEstadosInventario() {
+        return new String[] {
+                "NORMAL",
+                "BAJO",
+                "AGOTADO"
+        };
+    }
+
+    public java.util.ArrayList<StockItem> obtenerMaterialesParaReposicion()
+            throws Exception {
+
+        java.util.ArrayList<StockItem> materiales =
+                new java.util.ArrayList<>(listar());
+
+        java.util.ArrayList<StockItem> reposicion =
+                new java.util.ArrayList<>();
+
+        for (StockItem material : materiales) {
+            if (material.necesitaReposicion()) {
+                reposicion.add(material);
+            }
+        }
+
+        return reposicion;
+    }
+
 }

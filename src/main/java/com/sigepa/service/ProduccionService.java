@@ -1,6 +1,6 @@
+
 package com.sigepa.service;
 
-import com.sigepa.dao.PedidoDAO;
 import com.sigepa.dao.ProduccionDAO;
 import com.sigepa.model.OrdenProduccion;
 
@@ -11,62 +11,46 @@ public class ProduccionService {
     private final ProduccionDAO produccionDAO =
             new ProduccionDAO();
 
-    private final PedidoDAO pedidoDAO =
-            new PedidoDAO();
-
+    // Generar una orden de producción
     public void generarOrden(
             int idPedido,
             String observaciones
     ) throws Exception {
 
-        String estado =
-                pedidoDAO.obtenerEstado(
-                        idPedido
-                );
-
-        if (estado == null) {
-
+        if (idPedido <= 0) {
             throw new IllegalArgumentException(
-                    "Pedido inexistente."
+                    "El ID del pedido debe ser válido."
             );
         }
 
-        if (!estado.equals("CONFIRMADO")) {
-
-            throw new IllegalArgumentException(
-                    "El pedido debe estar CONFIRMADO."
-            );
-        }
-
-        produccionDAO.crearOrden(
+        produccionDAO.generarOrdenTransaccional(
                 idPedido,
                 observaciones
         );
-
-        pedidoDAO.actualizarEstado(
-                idPedido,
-                "EN PRODUCCION"
-        );
     }
 
+    // Consultar las órdenes de producción
     public List<OrdenProduccion> listar()
             throws Exception {
 
         return produccionDAO.listar();
     }
 
+    // Finalizar una orden de producción
     public void finalizarOrden(
             int idOrden,
             int idPedido
     ) throws Exception {
 
-        produccionDAO.finalizarOrden(
-                idOrden
-        );
+        if (idOrden <= 0 || idPedido <= 0) {
+            throw new IllegalArgumentException(
+                    "Los identificadores deben ser válidos."
+            );
+        }
 
-        pedidoDAO.actualizarEstado(
-                idPedido,
-                "TERMINADO"
+        produccionDAO.finalizarOrdenTransaccional(
+                idOrden,
+                idPedido
         );
     }
 }

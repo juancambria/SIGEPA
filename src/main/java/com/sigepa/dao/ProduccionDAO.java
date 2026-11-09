@@ -122,15 +122,19 @@ public class ProduccionDAO {
         return ordenes;
     }
 
-    public void finalizarOrden(
-            int idOrden
+
+    public boolean finalizarOrden(
+            int idOrden,
+            int idPedido
     ) throws SQLException {
 
         String sql =
                 "UPDATE ordenes_produccion "
                         + "SET estado = 'TERMINADO', "
                         + "fecha_fin = NOW() "
-                        + "WHERE id_orden = ?";
+                        + "WHERE id_orden = ? "
+                        + "AND id_pedido = ? "
+                        + "AND estado = 'EN PRODUCCION'";
 
         try (
                 Connection connection =
@@ -140,12 +144,168 @@ public class ProduccionDAO {
                         connection.prepareStatement(sql)
         ) {
 
-            statement.setInt(
-                    1,
-                    idOrden
-            );
+            statement.setInt(1, idOrden);
+            statement.setInt(2, idPedido);
 
-            statement.executeUpdate();
+            return statement.executeUpdate() == 1;
         }
     }
+
+    public void generarOrdenTransaccional(
+            int idPedido,
+            String observaciones
+    ) throws SQLException {
+
+        try (Connection connection =
+                     DatabaseConnection.getConnection()) {
+
+            connection.setAutoCommit(false);
+
+            try {
+                String sqlEstado =
+                        "SELECT estado FROM pedidos "
+                                + "WHERE id_pedido = ? FOR UPDATE";
+
+                String estado;
+
+                try (PreparedStatement statement =
+                             connection.prepareStatement(sqlEstado)) {
+
+                    statement.setInt(1, idPedido);
+
+                    try (ResultSet resultado =
+                                 statement.executeQuery()) {
+
+                        if (!resultado.next()) {
+                            throw new IllegalArgumentException(
+                                    "Pedido inexistente."
+                            );
+                        }
+
+                        estado = resultado.getString("estado");
+                    }
+                }
+
+                if (!"CONFIRMADO".equals(estado)) {
+                    throw new IllegalArgumentException(
+                            "El pedido debe estar CONFIRMADO."
+                    );
+                }
+
+                String sqlOrden =
+                        "INSERT INTO ordenes_produccion "
+                                + "(id_pedido, fecha_inicio, estado, observaciones) "
+                                + "VALUES (?, NOW(), 'EN PRODUCCION', ?)";
+
+                try (PreparedStatement statement =
+                             connection.prepareStatement(sqlOrden)) {
+
+                    statement.setInt(1, idPedido);
+                    statement.setString(2, observaciones);
+                    statement.executeUpdate();
+                }
+
+                String sqlPedido =
+                        "UPDATE pedidos SET estado = 'EN PRODUCCION' "
+                                + "WHERE id_pedido = ? AND estado = 'CONFIRMADO'";
+
+                try (PreparedStatement statement =
+                             connection.prepareStatement(sqlPedido)) {
+
+                    statement.setInt(1, idPedido);
+
+                    if (statement.executeUpdate() != 1) {
+                        throw new SQLException(
+                                "No se pudo actualizar el pedido."
+                        );
+                    }
+                }
+
+                connection.commit();
+
+            } catch (Exception ex) {
+                connection.rollback();
+                throw ex;
+            }
+        }
+    }
+
+    public void finalizarOrdenTransaccional(
+            int idOrden,
+            int idPedido
+    ) throws SQLException {
+
+        try (Connection connection =
+                     DatabaseConnection.getConnection()) {
+
+            connection.setAutoCommit(false);
+
+            try {
+                String sqlEstado =
+                        "SELECT estado FROM pedidos "
+                                + "WHERE id_pedido = ? FOR UPDATE";
+
+                try (PreparedStatement statement =
+                             connection.prepareStatement(sqlEstado)) {
+
+                    statement.setInt(1, idPedido);
+
+                    try (ResultSet resultado =
+                                 statement.executeQuery()) {
+
+                        if (!resultado.next()
+                                || !"EN PRODUCCION".equals(
+                                resultado.getString("estado"))) {
+                            throw new IllegalArgumentException(
+                                    "El pedido no está EN PRODUCCION."
+                            );
+                        }
+                    }
+                }
+
+                String sqlOrden =
+                        "UPDATE ordenes_produccion "
+                                + "SET estado = 'TERMINADO', fecha_fin = NOW() "
+                                + "WHERE id_orden = ? AND id_pedido = ? "
+                                + "AND estado = 'EN PRODUCCION'";
+
+                try (PreparedStatement statement =
+                             connection.prepareStatement(sqlOrden)) {
+
+                    statement.setInt(1, idOrden);
+                    statement.setInt(2, idPedido);
+
+                    if (statement.executeUpdate() != 1) {
+                        throw new IllegalArgumentException(
+                                "La orden no existe, no corresponde "
+                                        + "al pedido o ya está finalizada."
+                        );
+                    }
+                }
+
+                String sqlPedido =
+                        "UPDATE pedidos SET estado = 'TERMINADO' "
+                                + "WHERE id_pedido = ? AND estado = 'EN PRODUCCION'";
+
+                try (PreparedStatement statement =
+                             connection.prepareStatement(sqlPedido)) {
+
+                    statement.setInt(1, idPedido);
+
+                    if (statement.executeUpdate() != 1) {
+                        throw new SQLException(
+                                "No se pudo finalizar el pedido."
+                        );
+                    }
+                }
+
+                connection.commit();
+
+            } catch (Exception ex) {
+                connection.rollback();
+                throw ex;
+            }
+        }
+    }
+
 }
